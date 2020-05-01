@@ -8,7 +8,7 @@ $ cd pending_seq2seq
 ```
 $ virtualenv -p /usr/bin/python2.7 venv
 $ source venv/bin/activate
-$ pip install numpy sklearn tensorflow==1.15 tensorflow-gpu==1.15
+$ pip install numpy==1.16.1 sklearn tensorflow==1.15 tensorflow-gpu==1.15
 ```
 **2. Download NLP**
 ```
