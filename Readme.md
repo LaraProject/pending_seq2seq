@@ -1,20 +1,20 @@
 ### How to use ? ###
-0. Clone this repository
+**0. Clone this repository**
 ```
 $ git clone https://github.com/LaraProject/pending_seq2seq -b louis
 $ cd pending_seq2seq
 ```
-1. Setup Python 2.7 environnement and install dependencies
+**1. Setup Python 2.7 environnement and install dependencies**
 ```
 $ virtualenv -p /usr/bin/python2.7 venv
 $ source venv/bin/activate
 $ pip install numpy sklearn tensorflow==1.15 tensorflow-gpu==1.15
 ```
-2. Download NLP
+**2. Download NLP**
 ```
 git clone https://github.com/LaraProject/nlp
 ```
-3. Download the dataset
+**3. Download the dataset**
 ```
 $ wget http://www.mpi-sws.org/~cristian/data/cornell_movie_dialogs_corpus.zip
 $ unzip cornell_movie_dialogs_corpus.zip "cornell movie-dialogs corpus/movie_conversations.txt"
@@ -23,8 +23,10 @@ $ mv "cornell movie-dialogs corpus/movie_conversations.txt" .
 $ mv "cornell movie-dialogs corpus/movie_lines.txt" .
 $ rm -rf "cornell movie-dialogs corpus"
 ```
-4. Setup the NLP
+**4. Setup the NLP**
+
 Create *src/main/java/org/lara/nlp/Main.java*
+
 ```
 package org.lara.nlp;
 
@@ -54,17 +56,17 @@ class Main {
 	}
 }
 ```
-5. Run the NLP
+**5. Run the NLP**
 ```
 $ cd nlp/
 $ mvn package
 $ java -cp target/laraproject-0.0.1-SNAPSHOT.jar org.lara.nlp.Main
 ```
-6. Create the dictionnary
+**6. Create the dictionnary**
 ```
 $ python createDictionnary.py
 ```
-7. Run the Seq2Seq netword
+**7. Run the Seq2Seq network**
 ```  
 $ python Seq2Seq.py
 ```
