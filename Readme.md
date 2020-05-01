@@ -25,7 +25,7 @@ $ rm -rf "cornell movie-dialogs corpus"
 ```
 **4. Setup the NLP**
 
-Create *src/main/java/org/lara/nlp/Main.java*
+Create *nlp/src/main/java/org/lara/nlp/Main.java*
 
 ```
 package org.lara.nlp;
