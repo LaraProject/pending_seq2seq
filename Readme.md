@@ -31,6 +31,7 @@ Create *nlp/src/main/java/org/lara/nlp/Main.java*
 package org.lara.nlp;
 
 import java.io.File;
+import java.util.ArrayList;
 import org.deeplearning4j.models.embeddings.WeightLookupTable;
 import org.deeplearning4j.models.word2vec.VocabWord;
 import org.lara.nlp.context.Cornell;
