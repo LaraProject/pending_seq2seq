@@ -42,7 +42,7 @@ import org.nd4j.linalg.factory.Nd4j;
 class Main {
 	public static void main(String[] args) throws Exception {
 		// Context
-		Cornell context = new Cornell("movie_lines.txt", "movie_conversations.txt", 0, 20);
+		Cornell context = new Cornell("../movie_lines.txt", "../movie_conversations.txt", 0, 20);
 		context.init();
 		context.cleaning();
 		// Word2Vec
@@ -51,9 +51,9 @@ class Main {
 		allWords.addAll(context.answers);
 		W2v w2v = new W2v(allWords, 5, 1, 3, 100);
 		// Export everything
-		w2v.exportWords("wordList.txt");
-		w2v.exportEmbedding("embeddingMatrix.npy");
-		context.exportDictionnary("createDictionnary.py");
+		w2v.exportWords("../wordList.txt");
+		w2v.exportEmbedding("../embeddingMatrix.npy");
+		context.exportDictionnary("../createDictionnary.py");
 	}
 }
 ```
