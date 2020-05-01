@@ -1,8 +1,8 @@
 ### How to use ? ###
 0. Clone this repository
 ```
-git clone https://github.com/LaraProject/pending_seq2seq -b louis
-cd pending_seq2seq
+$ git clone https://github.com/LaraProject/pending_seq2seq -b louis
+$ cd pending_seq2seq
 ```
 1. Setup Python 2.7 environnement and install dependencies
 ```
@@ -16,7 +16,7 @@ git clone https://github.com/LaraProject/nlp
 ```
 3. Download the dataset
 ```
-wget http://www.mpi-sws.org/~cristian/data/cornell_movie_dialogs_corpus.zip
+$ wget http://www.mpi-sws.org/~cristian/data/cornell_movie_dialogs_corpus.zip
 $ unzip cornell_movie_dialogs_corpus.zip "cornell movie-dialogs corpus/movie_conversations.txt"
 $ unzip cornell_movie_dialogs_corpus.zip "cornell movie-dialogs corpus/movie_lines.txt"
 $ mv "cornell movie-dialogs corpus/movie_conversations.txt" .
@@ -56,15 +56,15 @@ class Main {
 ```
 5. Run the NLP
 ```
-cd nlp/
-mvn package
-java -cp target/laraproject-0.0.1-SNAPSHOT.jar org.lara.nlp.Main
+$ cd nlp/
+$ mvn package
+$ java -cp target/laraproject-0.0.1-SNAPSHOT.jar org.lara.nlp.Main
 ```
 6. Create the dictionnary
 ```
-python createDictionnary.py
+$ python createDictionnary.py
 ```
 7. Run the Seq2Seq netword
 ```  
-python Seq2Seq.py
+$ python Seq2Seq.py
 ```
