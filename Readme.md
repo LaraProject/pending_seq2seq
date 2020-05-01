@@ -62,6 +62,7 @@ class Main {
 $ cd nlp/
 $ mvn package
 $ java -cp target/laraproject-0.0.1-SNAPSHOT.jar org.lara.nlp.Main
+$ cd ..
 ```
 **6. Create the dictionnary**
 ```
