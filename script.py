@@ -27,6 +27,7 @@ model_w2v = None
 embedding_matrix = None
 maxlen_questions = 0
 maxlen_answers = 0
+VOCAB_SIZE = 0
 
 # Import data
 def import_data():
@@ -71,7 +72,7 @@ def preprocess_data():
 	# Tokenize answers
 	answers = list()
 	for i in range(len(answers_with_tags)):
-		answers.append('<START> ' + answers_with_tags[i] + ' <END>')
+		answers.append('<start> ' + answers_with_tags[i] + ' <end>')
 
 # Prefilter before tokenizer
 def clean_text(text):
@@ -105,7 +106,8 @@ def load_word2vec(model_path):
 
 def fit_tokenizer():
 	global tokenizer
-	tokenizer.fit_on_texts(list(model.vocab.keys()) + questions + answers)
+	global VOCAB_SIZE
+	tokenizer.fit_on_texts(questions + answers + [["<unk>"]])
 	VOCAB_SIZE = len(tokenizer.word_index) + 1
 	print('VOCAB SIZE : {}'.format(VOCAB_SIZE))
 
@@ -121,23 +123,23 @@ def replace_unknown_words():
 	for word in tokenizer.word_index:
 		if word not in model_w2v.vocab:
 			unknown_words.append(word)
-	vocab.append('<UNK>')
 	for q in questions:
 		for unk in unknown_words:
-			q.replace(" " + unk + " ", ' <UNK> ')
+			q.replace(" " + unk + " ", ' <unk> ')
 	for a in answers:
 		for unk in unknown_words:
-			a.replace(" " + unk + " ", ' <UNK> ')
+			a.replace(" " + unk + " ", ' <unk> ')
+	return unknown_words
 
 # Create the embedding matrix
-def create_embedding_matrix():
+def create_embedding_matrix(unknown_words):
 	global questions
 	global answers
 	global embedding_matrix
 	embedding_matrix = np.zeros((VOCAB_SIZE, 300))
 	for i in range(len(tokenizer.word_index)):
 		if vocab[i] in unknown_words:
-			embedding_matrix[i] = model_w2v['<UNK>']
+			embedding_matrix[i] = model_w2v['<unk>']
 		else:
 			embedding_matrix[i] = model_w2v[vocab[i]]
 
@@ -172,8 +174,7 @@ def create_input_output():
 	return encoder_input_data, decoder_input_data, decoder_output_data
 
 # Defining the Encoder-Decoder model
-def create_model():
-	encoder_input_data, decoder_input_data, decoder_output_data = create_input_output()
+def create_model(encoder_input_data, decoder_input_data, decoder_output_data):
 	encoder_inputs = tf.keras.layers.Input(shape=(None, ))
 	encoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, 300,
 			weights=[embedding_matrix])(encoder_inputs)
@@ -196,15 +197,18 @@ def create_model():
 	model.compile(optimizer=tf.keras.optimizers.Adam(),
 				  loss='categorical_crossentropy')
 	model.summary()
-	return model, encoder_inputs, encoder_states, decoder_embedding
+	return model, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs
 
 # Training the model
-def train(model):
+def train():
+	encoder_input_data, decoder_input_data, decoder_output_data = create_input_output()
+	model, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs = create_model(encoder_input_data, decoder_input_data, decoder_output_data)
 	model.fit([encoder_input_data, decoder_input_data],
-			  decoder_output_data, batch_size=64, epochs=200)
+			  decoder_output_data, batch_size=32, epochs=150)
+	return encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs
 
 # Defining inference models
-def make_inference_models():
+def make_inference_models(encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs):
 	encoder_model = tf.keras.models.Model(encoder_inputs,
 			encoder_states)
 	decoder_state_input_h = tf.keras.layers.Input(shape=(300, ))
@@ -220,14 +224,14 @@ def make_inference_models():
 	return (encoder_model, decoder_model)
 
 # Save the inference model
-def save_inference_model(num):
-	(encoder_model, decoder_model) = make_inference_models()
-	encoder_model.save('models/' + str(num) + '/model_enc.h5')
-	decoder_model.save('models/' + str(num) + '/model_dec.h5')
+def save_inference_model(path, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs):
+	(encoder_model, decoder_model) = make_inference_models(encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs)
+	encoder_model.save(path + 'model_enc.h5')
+	decoder_model.save(path + 'model_dec.h5')
 
 # Save the tokenizer
-def save_tokenizer(num):
-	with open('models/' + str(num) + '/tokenizer.pickle', 'wb') as handle:
+def save_tokenizer(path):
+	with open(path + 'tokenizer.pickle', 'wb') as handle:
 		pickle.dump(tokenizer, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Load the inference model
@@ -249,16 +253,16 @@ def str_to_tokens(sentence):
 		if word in tokenizer.word_index:
 			tokens_list.append(tokenizer.word_index[word])
 		else:
-			tokens_list.append(tokenizer.word_index["<UNK>"])
+			tokens_list.append(tokenizer.word_index["<unk>"])
 	return preprocessing.sequence.pad_sequences([tokens_list],
 			maxlen=maxlen_questions, padding='post')
 
 # Ask multiple questions
-def ask_questions():
+def ask_questions(enc_model, dec_model):
 	for _ in range(10):
 		states_values = enc_model.predict(str_to_tokens(input('Enter question : ')))
 		empty_target_seq = np.zeros((1, 1))
-		empty_target_seq[0, 0] = tokenizer.word_index['<START>']
+		empty_target_seq[0, 0] = tokenizer.word_index['<start>']
 		stop_condition = False
 		decoded_translation = ''
 		while not stop_condition:
@@ -271,7 +275,7 @@ def ask_questions():
 					decoded_translation += ' {}'.format(word)
 					sampled_word = word
 
-			if sampled_word == '<END>' or len(decoded_translation.split()) \
+			if sampled_word == '<end>' or len(decoded_translation.split()) \
 				> maxlen_answers:
 				stop_condition = True
 
@@ -279,4 +283,4 @@ def ask_questions():
 			empty_target_seq[0, 0] = sampled_word_index
 			states_values = [h, c]
 
-		print(decoded_translation[:-6].replace("<UNK>",""))  # remove end word
+		print(decoded_translation[:-6].replace("<unk>",""))  # remove end word
