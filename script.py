@@ -1,6 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
 import numpy as np
 import tensorflow as tf
 import pickle
@@ -107,7 +104,7 @@ def load_word2vec(model_path):
 def fit_tokenizer():
 	global tokenizer
 	global VOCAB_SIZE
-	tokenizer.fit_on_texts(questions + answers + [["<unk>"]])
+	tokenizer.fit_on_texts(questions + answers + [["<unk>","<start>","<end>"]])
 	VOCAB_SIZE = len(tokenizer.word_index) + 1
 	print('VOCAB SIZE : {}'.format(VOCAB_SIZE))
 
@@ -204,7 +201,7 @@ def train():
 	encoder_input_data, decoder_input_data, decoder_output_data = create_input_output()
 	model, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs = create_model(encoder_input_data, decoder_input_data, decoder_output_data)
 	model.fit([encoder_input_data, decoder_input_data],
-			  decoder_output_data, batch_size=32, epochs=150)
+			  decoder_output_data, batch_size=32, epochs=200)
 	return encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs
 
 # Defining inference models
@@ -244,9 +241,10 @@ def load_inference_model(enc_file, dec_file):
 def load_tokenizer(tokenizer_file):
 	with open(tokenizer_file, 'rb') as handle:
 		tokenizer = pickle.load(handle)
+	return tokenizer
 
 # Talking with our Chatbot
-def str_to_tokens(sentence):
+def str_to_tokens(sentence : str ):
 	words = sentence.lower().split()
 	tokens_list = list()
 	for word in words:
@@ -275,12 +273,11 @@ def ask_questions(enc_model, dec_model):
 					decoded_translation += ' {}'.format(word)
 					sampled_word = word
 
-			if sampled_word == '<end>' or len(decoded_translation.split()) \
-				> maxlen_answers:
+			if sampled_word == 'end' or len(decoded_translation.split()) > maxlen_answers:
 				stop_condition = True
 
 			empty_target_seq = np.zeros((1, 1))
 			empty_target_seq[0, 0] = sampled_word_index
 			states_values = [h, c]
 
-		print(decoded_translation[:-6].replace("<unk>",""))  # remove end word
+		print(decoded_translation[:-4].replace("<unk>",""))  # remove end w
