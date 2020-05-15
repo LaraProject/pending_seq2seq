@@ -12,6 +12,7 @@ import re
 from gensim.models import Word2Vec
 import re
 from gensim.models import KeyedVectors
+import argparse
 
 # Global variables
 
@@ -106,7 +107,7 @@ def fit_tokenizer():
 	global VOCAB_SIZE
 	tokenizer.fit_on_texts(questions + answers + [["<unk>","<start>","<end>"]])
 	VOCAB_SIZE = len(tokenizer.word_index) + 1
-	print('VOCAB SIZE : {}'.format(VOCAB_SIZE))
+	#print('VOCAB SIZE : {}'.format(VOCAB_SIZE))
 
 def fill_vocab():
 	global vocab
@@ -148,7 +149,7 @@ def create_input_output():
 	padded_questions = preprocessing.sequence.pad_sequences(tokenized_questions,
 			maxlen=maxlen_questions, padding='post')
 	encoder_input_data = np.array(padded_questions)
-	print((encoder_input_data.shape, maxlen_questions))
+	#print((encoder_input_data.shape, maxlen_questions))
 
 	# decoder_input_data
 	tokenized_answers = tokenizer.texts_to_sequences(answers)
@@ -156,7 +157,7 @@ def create_input_output():
 	padded_answers = preprocessing.sequence.pad_sequences(tokenized_answers,
 			maxlen=maxlen_answers, padding='post')
 	decoder_input_data = np.array(padded_answers)
-	print((decoder_input_data.shape, maxlen_answers))
+	#print((decoder_input_data.shape, maxlen_answers))
 
 	# decoder_output_data
 	tokenized_answers = tokenizer.texts_to_sequences(answers)
@@ -166,7 +167,7 @@ def create_input_output():
 			maxlen=maxlen_answers, padding='post')
 	onehot_answers = utils.to_categorical(padded_answers, VOCAB_SIZE)
 	decoder_output_data = np.array(onehot_answers)
-	print(decoder_output_data.shape)
+	#print(decoder_output_data.shape)
 
 	return encoder_input_data, decoder_input_data, decoder_output_data
 
@@ -223,12 +224,12 @@ def make_inference_models(encoder_inputs, encoder_states, decoder_embedding, dec
 # Save the inference model
 def save_inference_model(path, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs):
 	(encoder_model, decoder_model) = make_inference_models(encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs)
-	encoder_model.save(path + 'model_enc.h5')
-	decoder_model.save(path + 'model_dec.h5')
+	encoder_model.save(path + '/model_enc.h5')
+	decoder_model.save(path + '/model_dec.h5')
 
 # Save the tokenizer
 def save_tokenizer(path):
-	with open(path + 'tokenizer.pickle', 'wb') as handle:
+	with open(path + '/tokenizer.pickle', 'wb') as handle:
 		pickle.dump(tokenizer, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Load the inference model
@@ -281,3 +282,57 @@ def ask_questions(enc_model, dec_model):
 			states_values = [h, c]
 
 		print(decoded_translation[:-4].replace("<unk>",""))  # remove end w
+
+# Argument management
+argslist = argparse.ArgumentParser(description="Seq2Seq Neural Network")
+
+argslist.add_argument('word2vec_model', metavar='word2vec_model', type=str,
+		help='Path to the word2vec model')
+argslist.add_argument('--downloadData', metavar='[True/False]', type=bool,
+        help='Specify whether the dataset should be downloaded', default=False, required=False)
+argslist.add_argument('--speak', metavar='[True/False]', type=bool,
+        help='Specify whether to speak with the Network', default=False, required=False)
+argslist.add_argument('--saveModel', metavar='path', type=str,
+        help='Specify the path where to save the model', default='', required=False)
+argslist.add_argument('--loadModel', metavar='path', type=str,
+        help='Specify the path to import the model', default='', required=False)
+args = argslist.parse_args()
+
+# Launch everything
+
+maxlen_questions = 22
+maxlen_answers = 74
+
+if len(args.loadModel) > 0:
+	print("Seq2Seq: Loading model from " + args.loadModel + "...")
+	encoder_model, decoder_model = load_inference_model(args.loadModel + "/model_enc.h5", args.loadModel + "/model_dec.h5")
+	tokenizer = load_tokenizer(args.loadModel + "/tokenizer.pickle")
+else:
+	if args.downloadData:
+		print("Seq2Seq: Downloading data")
+		import_data()
+	print("Seq2Seq: Preprocessing the data...")
+	preprocess_data()
+	print("Seq2Seq: Cleaning the data...")
+	clean_everything()
+	print("Seq2Seq: Loading word2vec model...")
+	load_word2vec(args.word2vec_model)
+	print("Seq2Seq: Training the tokenizer")
+	fit_tokenizer()
+	print("Seq2Seq: Filling the vocab list...")
+	fill_vocab()
+	print("Seq2Seq: Creating the embedding matrix...")
+	unk_words = replace_unknown_words()
+	create_embedding_matrix(unk_words)
+	print("Seq2Seq: Training model...")
+	encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs = train()
+	if len(args.saveModel) > 0:
+		print("Seq2Seq: Saving model to " + args.saveModel)
+		save_inference_model(args.saveModel, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs)
+		save_tokenizer(args.saveModel)
+	if args.speak:
+		encoder_model, decoder_model = make_inference_models(encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs)
+
+if args.speak:
+	print("Seq2Seq: Ready for questions")
+	ask_questions(encoder_model, decoder_model)
