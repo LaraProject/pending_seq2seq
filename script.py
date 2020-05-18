@@ -121,12 +121,14 @@ def replace_unknown_words():
 	for word in tokenizer.word_index:
 		if word not in model_w2v.vocab:
 			unknown_words.append(word)
+	'''
 	for q in questions:
 		for unk in unknown_words:
 			q.replace(" " + unk + " ", ' <unk> ')
 	for a in answers:
 		for unk in unknown_words:
 			a.replace(" " + unk + " ", ' <unk> ')
+	'''
 	return unknown_words
 
 # Create the embedding matrix
