@@ -34,6 +34,26 @@ def import_data():
 	z = zipfile.ZipFile(io.BytesIO(r.content))
 	z.extractall()
 
+# Import custom data
+def use_custom_data(path):
+	global questions
+	global answers
+	# Open file
+	f = open(path)
+	lines = f.readlines()
+	f.close()
+	non_tonkenized_answers = []
+	for i in range(len(lines)):
+		if i % 2 == 0:
+			questions.append(lines[i][11:])
+		else:
+			non_tonkenized_answers.append(lines[i][9:])
+
+	# Tokenize answers
+	answers = []
+	for i in range(len(non_tonkenized_answers)):
+		answers.append('<start> ' + non_tonkenized_answers[i] + ' <end>')
+
 # Preprocess the data
 def preprocess_data():
 	global questions
@@ -293,6 +313,8 @@ argslist.add_argument('word2vec_model', metavar='word2vec_model', type=str,
 		help='Path to the word2vec model')
 argslist.add_argument('--downloadData', metavar='[True/False]', type=bool,
         help='Specify whether the dataset should be downloaded', default=False, required=False)
+argslist.add_argument('--customData', metavar='path', type=str,
+        help='Specify the path to the custom dataset', default='', required=False)
 argslist.add_argument('--speak', metavar='[True/False]', type=bool,
         help='Specify whether to speak with the Network', default=False, required=False)
 argslist.add_argument('--saveModel', metavar='path', type=str,
@@ -311,13 +333,17 @@ if len(args.loadModel) > 0:
 	encoder_model, decoder_model = load_inference_model(args.loadModel + "/model_enc.h5", args.loadModel + "/model_dec.h5")
 	tokenizer = load_tokenizer(args.loadModel + "/tokenizer.pickle")
 else:
-	if args.downloadData:
-		print("Seq2Seq: Downloading data")
-		import_data()
-	print("Seq2Seq: Preprocessing the data...")
-	preprocess_data()
-	print("Seq2Seq: Cleaning the data...")
-	clean_everything()
+	if len(args.customData) > 0:
+		print("Seq2Seq: Using custom dataset from " + args.customData)
+		use_custom_data(args.customData)
+	else:
+		if args.downloadData:
+			print("Seq2Seq: Downloading data")
+			import_data()
+		print("Seq2Seq: Preprocessing the data...")
+		preprocess_data()
+		print("Seq2Seq: Cleaning the data...")
+		clean_everything()
 	print("Seq2Seq: Loading word2vec model...")
 	load_word2vec(args.word2vec_model)
 	print("Seq2Seq: Training the tokenizer")
