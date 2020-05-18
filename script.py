@@ -167,8 +167,7 @@ def create_input_output():
 		tokenized_answers[i] = (tokenized_answers[i])[1:]
 	padded_answers = preprocessing.sequence.pad_sequences(tokenized_answers,
 			maxlen=maxlen_answers, padding='post')
-	onehot_answers = utils.to_categorical(padded_answers, VOCAB_SIZE)
-	decoder_output_data = np.array(onehot_answers)
+	decoder_output_data = np.array(padded_answers)
 	#print(decoder_output_data.shape)
 
 	return encoder_input_data, decoder_input_data, decoder_output_data
@@ -197,7 +196,7 @@ def create_model(encoder_input_data, decoder_input_data, decoder_output_data):
 
 	model = tf.keras.models.Model([encoder_inputs, decoder_inputs], output)
 	model.compile(optimizer=tf.keras.optimizers.Adam(),
-				  loss='categorical_crossentropy')
+				  loss='sparse_categorical_crossentropy')
 	model.summary()
 	return model, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs
 
