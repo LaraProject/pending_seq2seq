@@ -175,16 +175,18 @@ def create_input_output():
 def create_model(encoder_input_data, decoder_input_data, decoder_output_data):
 	encoder_inputs = tf.keras.layers.Input(shape=(None, ))
 	encoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, 300,
-			weights=[embedding_matrix])(encoder_inputs)
+			mask_zero=False, weights=[embedding_matrix], trainable=False, input_length=maxlen_questions)(encoder_inputs)
+	encoder_embedding = tf.keras.layers.SpatialDropout1D(0.2)(encoder_embedding)
 	(encoder_outputs, state_h, state_c) = tf.keras.layers.LSTM(300,
 			return_state=True)(encoder_embedding)
 	encoder_states = [state_h, state_c]
 
 	decoder_inputs = tf.keras.layers.Input(shape=(None, ))
 	decoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, 300,
-			weights=[embedding_matrix])(decoder_inputs)
+			mask_zero=False, weights=[embedding_matrix], trainable=False, input_length=maxlen_answers)(decoder_inputs)
+	decoder_embedding = tf.keras.layers.SpatialDropout1D(0.2)(decoder_embedding)
 	decoder_lstm = tf.keras.layers.LSTM(300, return_state=True,
-										return_sequences=True)
+										return_sequences=True, recurrent_dropout=0.2)
 	(decoder_outputs, _, _) = decoder_lstm(decoder_embedding,
 			initial_state=encoder_states)
 	decoder_dense = tf.keras.layers.Dense(VOCAB_SIZE,
