@@ -20,7 +20,6 @@ import argparse
 tokenizer = preprocessing.text.Tokenizer()
 questions = []
 answers = []
-vocab = []
 model_w2v = None
 embedding_matrix = None
 maxlen_questions = 0
@@ -129,39 +128,33 @@ def fit_tokenizer():
 	VOCAB_SIZE = len(tokenizer.word_index) + 1
 	#print('VOCAB SIZE : {}'.format(VOCAB_SIZE))
 
-def fill_vocab():
-	global vocab
-	vocab = []
+# Get all words which are in both the model and the dataset
+def get_known_words():
+	known_words = []
 	for word in tokenizer.word_index:
-		vocab.append(word)
+		if word in model_w2v.vocab:
+			known_words.append(word)
+	return known_words
 
-# Add a token for words which aren't in the model
-def replace_unknown_words():
-	unknown_words = []
-	for word in tokenizer.word_index:
-		if word not in model_w2v.vocab:
-			unknown_words.append(word)
-	'''
-	for q in questions:
-		for unk in unknown_words:
-			q.replace(" " + unk + " ", ' <unk> ')
-	for a in answers:
-		for unk in unknown_words:
-			a.replace(" " + unk + " ", ' <unk> ')
-	'''
-	return unknown_words
+# Make a new tokenizer
+def fit_new_tokenizer():
+	global tokenizer
+	global VOCAB_SIZE
+	fit_tokenizer()
+	known_words = get_known_words()
+	tokenizer_new = preprocessing.text.Tokenizer(oov_token='<unk>')
+	tokenizer_new.fit_on_texts([known_words])
+	tokenizer = tokenizer_new
+	VOCAB_SIZE = len(tokenizer.word_index) + 1
+	#print('VOCAB SIZE : {}'.format(VOCAB_SIZE))
+
 
 # Create the embedding matrix
-def create_embedding_matrix(unknown_words):
-	global questions
-	global answers
+def create_embedding_matrix():
 	global embedding_matrix
 	embedding_matrix = np.zeros((VOCAB_SIZE, 300))
-	for i in range(len(tokenizer.word_index)):
-		if vocab[i] in unknown_words:
-			embedding_matrix[i] = model_w2v['<unk>']
-		else:
-			embedding_matrix[i] = model_w2v[vocab[i]]
+	for word, i in tokenizer.word_index.items():
+		embedding_matrix[i] = model_w2v[word]
 
 # Create input and output datasets
 # encoder_input_data
@@ -272,10 +265,7 @@ def str_to_tokens(sentence : str ):
 	words = sentence.lower().split()
 	tokens_list = list()
 	for word in words:
-		if word in tokenizer.word_index:
-			tokens_list.append(tokenizer.word_index[word])
-		else:
-			tokens_list.append(tokenizer.word_index["<unk>"])
+		tokens_list.append(tokenizer.word_index[word])
 	return preprocessing.sequence.pad_sequences([tokens_list],
 			maxlen=maxlen_questions, padding='post')
 
@@ -347,12 +337,9 @@ else:
 	print("Seq2Seq: Loading word2vec model...")
 	load_word2vec(args.word2vec_model)
 	print("Seq2Seq: Training the tokenizer")
-	fit_tokenizer()
-	print("Seq2Seq: Filling the vocab list...")
-	fill_vocab()
+	fit_new_tokenizer()
 	print("Seq2Seq: Creating the embedding matrix...")
-	unk_words = replace_unknown_words()
-	create_embedding_matrix(unk_words)
+	create_embedding_matrix()
 	print("Seq2Seq: Training model...")
 	encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs = train()
 	if len(args.saveModel) > 0:
