@@ -186,11 +186,14 @@ def create_input_output():
 	return encoder_input_data, decoder_input_data, decoder_output_data
 
 # Defining the Encoder-Decoder model
-def create_model(encoder_input_data, decoder_input_data, decoder_output_data):
+def create_model(encoder_input_data, decoder_input_data, decoder_output_data, use_spatial_dropout=False, use_reccurent_dropout=False, use_batch_normalisation=False):
 	encoder_inputs = tf.keras.layers.Input(shape=(None, ))
 	encoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, 300,
 			mask_zero=False, weights=[embedding_matrix], trainable=False, input_length=maxlen_questions)(encoder_inputs)
-	encoder_embedding = tf.keras.layers.SpatialDropout1D(0.2)(encoder_embedding)
+	if use_batch_normalisation:
+		encoder_embedding = tf.keras.layers.BatchNormalization()(encoder_embedding)
+	if use_spatial_dropout:
+		encoder_embedding = tf.keras.layers.SpatialDropout1D(0.2)(encoder_embedding)
 	(encoder_outputs, state_h, state_c) = tf.keras.layers.LSTM(300,
 			return_state=True)(encoder_embedding)
 	encoder_states = [state_h, state_c]
@@ -198,9 +201,16 @@ def create_model(encoder_input_data, decoder_input_data, decoder_output_data):
 	decoder_inputs = tf.keras.layers.Input(shape=(None, ))
 	decoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, 300,
 			mask_zero=False, weights=[embedding_matrix], trainable=False, input_length=maxlen_answers)(decoder_inputs)
-	decoder_embedding = tf.keras.layers.SpatialDropout1D(0.2)(decoder_embedding)
-	decoder_lstm = tf.keras.layers.LSTM(300, return_state=True,
-										return_sequences=True, recurrent_dropout=0.2)
+	if use_batch_normalisation:
+		decoder_embedding = tf.keras.layers.BatchNormalization()(decoder_embedding)
+	if use_spatial_dropout:
+		decoder_embedding = tf.keras.layers.SpatialDropout1D(0.2)(decoder_embedding)
+	if use_reccurent_dropout:
+		decoder_lstm = tf.keras.layers.LSTM(300, return_state=True,
+									return_sequences=True, recurrent_dropout=0.2)
+	else:
+		decoder_lstm = tf.keras.layers.LSTM(300, return_state=True,
+											return_sequences=True)
 	(decoder_outputs, _, _) = decoder_lstm(decoder_embedding,
 			initial_state=encoder_states)
 	decoder_dense = tf.keras.layers.Dense(VOCAB_SIZE,
@@ -214,9 +224,9 @@ def create_model(encoder_input_data, decoder_input_data, decoder_output_data):
 	return model, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs
 
 # Training the model
-def train():
+def train(use_spatial_dropout, use_reccurent_dropout, use_batch_normalisation):
 	encoder_input_data, decoder_input_data, decoder_output_data = create_input_output()
-	model, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs = create_model(encoder_input_data, decoder_input_data, decoder_output_data)
+	model, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs = create_model(encoder_input_data, decoder_input_data, decoder_output_data, use_spatial_dropout, use_reccurent_dropout, use_batch_normalisation)
 	model.fit([encoder_input_data, decoder_input_data],
 			  decoder_output_data, batch_size=32, epochs=200)
 	return encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs
@@ -311,6 +321,12 @@ argslist.add_argument('--saveModel', metavar='path', type=str,
         help='Specify the path where to save the model', default='', required=False)
 argslist.add_argument('--loadModel', metavar='path', type=str,
         help='Specify the path to import the model', default='', required=False)
+argslist.add_argument('--useSpatialDropout', metavar='[True/False]', type=bool,
+        help='Specify whether to use 1D spatial dropout after the embedding layers', default=False, required=False)
+argslist.add_argument('--useReccurentDropout', metavar='[True/False]', type=bool,
+        help='Specify whether to use a recurrent dropout in the LSTM', default=False, required=False)
+argslist.add_argument('--useBatchNormalisation', metavar='[True/False]', type=bool,
+        help='Specify whether to use batch normalisation', default=False, required=False)
 args = argslist.parse_args()
 
 # Launch everything
@@ -341,7 +357,7 @@ else:
 	print("Seq2Seq: Creating the embedding matrix...")
 	create_embedding_matrix()
 	print("Seq2Seq: Training model...")
-	encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs = train()
+	encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs = train(args.useSpatialDropout, args.useSpatialDropout, args.useBatchNormalisation)
 	if len(args.saveModel) > 0:
 		print("Seq2Seq: Saving model to " + args.saveModel)
 		save_inference_model(args.saveModel, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs)
