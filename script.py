@@ -270,6 +270,11 @@ def save_tokenizer(path):
 	with open(path + '/tokenizer.pickle', 'wb') as handle:
 		pickle.dump(tokenizer, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+def save_length(path):
+	data = str(maxlen_questions) + "," + str(maxlen_answers)
+	with open(path + "/length.txt", "w") as f:
+		f.write(data)
+
 # Load the inference model
 def load_inference_model(enc_file, dec_file):
 	encoder_model = tf.keras.models.load_model(enc_file)
@@ -281,6 +286,11 @@ def load_tokenizer(tokenizer_file):
 	with open(tokenizer_file, 'rb') as handle:
 		tokenizer = pickle.load(handle)
 	return tokenizer
+
+def load_length(length_file):
+	with open(length_file, "r") as f:
+		data = ((f.read()).split(","))
+	return int(data[0]), int(data[1])
 
 # Talking with our Chatbot
 def str_to_tokens(sentence : str ):
@@ -348,14 +358,13 @@ args = argslist.parse_args()
 
 # Launch everything
 
-maxlen_questions = 22
-maxlen_answers = 74
 vectors_size = args.vectorSize
 
 if len(args.loadModel) > 0:
 	print("Seq2Seq: Loading model from " + args.loadModel + "...")
 	encoder_model, decoder_model = load_inference_model(args.loadModel + "/model_enc.h5", args.loadModel + "/model_dec.h5")
 	tokenizer = load_tokenizer(args.loadModel + "/tokenizer.pickle")
+	maxlen_questions, maxlen_answers = load_tokenizer(args.loadModel + "/length.txt")
 else:
 	if len(args.customData) > 0:
 		print("Seq2Seq: Using custom dataset from " + args.customData)
@@ -380,6 +389,7 @@ else:
 		print("Seq2Seq: Saving model to " + args.saveModel)
 		save_inference_model(args.saveModel, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs)
 		save_tokenizer(args.saveModel)
+		save_length(args.saveModel)
 	if args.speak:
 		encoder_model, decoder_model = make_inference_models(encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs)
 
