@@ -17,7 +17,7 @@ import argparse
 # Global variables
 
 # Make a TensorFlow Tokenizer
-tokenizer = preprocessing.text.Tokenizer()
+tokenizer = preprocessing.text.Tokenizer(filters='')
 questions = []
 answers = []
 model_w2v = None
@@ -45,9 +45,9 @@ def use_custom_data(path):
 	non_tonkenized_answers = []
 	for i in range(len(lines)):
 		if i % 2 == 0:
-			questions.append(lines[i][11:])
+			questions.append(lines[i][11:-1])
 		else:
-			non_tonkenized_answers.append(lines[i][9:])
+			non_tonkenized_answers.append(lines[i][9:-1])
 
 	# Tokenize answers
 	answers = []
@@ -125,7 +125,7 @@ def load_word2vec(model_path):
 def fit_tokenizer():
 	global tokenizer
 	global VOCAB_SIZE
-	tokenizer.fit_on_texts(questions + answers + [["<unk>","<start>","<end>"]])
+	tokenizer.fit_on_texts(questions + answers)
 	VOCAB_SIZE = len(tokenizer.word_index) + 1
 	#print('VOCAB SIZE : {}'.format(VOCAB_SIZE))
 
@@ -135,7 +135,7 @@ def get_known_words():
 	for word in tokenizer.word_index:
 		if word in model_w2v.vocab:
 			known_words.append(word)
-	return known_words
+	return known_words + ["<unk>"]
 
 # Make a new tokenizer
 def fit_new_tokenizer():
@@ -143,10 +143,10 @@ def fit_new_tokenizer():
 	global VOCAB_SIZE
 	fit_tokenizer()
 	known_words = get_known_words()
-	tokenizer_new = preprocessing.text.Tokenizer(oov_token='<unk>')
+	tokenizer_new = preprocessing.text.Tokenizer(oov_token='<unk>', filters='')
 	tokenizer_new.fit_on_texts([known_words])
 	tokenizer = tokenizer_new
-	VOCAB_SIZE = len(tokenizer.word_index) + 1
+	VOCAB_SIZE = len(tokenizer.word_index) + 1 + 1
 	#print('VOCAB SIZE : {}'.format(VOCAB_SIZE))
 
 
@@ -276,7 +276,10 @@ def str_to_tokens(sentence : str ):
 	words = sentence.lower().split()
 	tokens_list = list()
 	for word in words:
-		tokens_list.append(tokenizer.word_index[word])
+		if word in tokenizer.word_index:
+			tokens_list.append(tokenizer.word_index[word])
+		else:
+			tokens_list.append(tokenizer.word_index['<unk>'])
 	return preprocessing.sequence.pad_sequences([tokens_list],
 			maxlen=maxlen_questions, padding='post')
 
@@ -298,14 +301,14 @@ def ask_questions(enc_model, dec_model):
 					decoded_translation += ' {}'.format(word)
 					sampled_word = word
 
-			if sampled_word == 'end' or len(decoded_translation.split()) > maxlen_answers:
+			if sampled_word == '<end>' or len(decoded_translation.split()) > maxlen_answers:
 				stop_condition = True
 
 			empty_target_seq = np.zeros((1, 1))
 			empty_target_seq[0, 0] = sampled_word_index
 			states_values = [h, c]
 
-		print(decoded_translation[:-4].replace("<unk>",""))  # remove end w
+		print(decoded_translation[:-5])  # remove end w
 
 # Argument management
 argslist = argparse.ArgumentParser(description="Seq2Seq Neural Network")
