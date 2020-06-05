@@ -25,6 +25,7 @@ embedding_matrix = None
 maxlen_questions = 0
 maxlen_answers = 0
 VOCAB_SIZE = 0
+vectors_size = 100
 
 # Import data
 def import_data():
@@ -152,7 +153,7 @@ def fit_new_tokenizer():
 # Create the embedding matrix
 def create_embedding_matrix():
 	global embedding_matrix
-	embedding_matrix = np.zeros((VOCAB_SIZE, 300))
+	embedding_matrix = np.zeros((VOCAB_SIZE, vectors_size))
 	for word, i in tokenizer.word_index.items():
 		embedding_matrix[i] = model_w2v[word]
 
@@ -188,28 +189,28 @@ def create_input_output():
 # Defining the Encoder-Decoder model
 def create_model(encoder_input_data, decoder_input_data, decoder_output_data, use_spatial_dropout=False, use_reccurent_dropout=False, use_batch_normalisation=False):
 	encoder_inputs = tf.keras.layers.Input(shape=(None, ))
-	encoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, 300,
+	encoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, vectors_size,
 			mask_zero=False, weights=[embedding_matrix], trainable=False, input_length=maxlen_questions)(encoder_inputs)
 	if use_batch_normalisation:
 		encoder_embedding = tf.keras.layers.BatchNormalization()(encoder_embedding)
 	if use_spatial_dropout:
 		encoder_embedding = tf.keras.layers.SpatialDropout1D(0.2)(encoder_embedding)
-	(encoder_outputs, state_h, state_c) = tf.keras.layers.LSTM(300,
+	(encoder_outputs, state_h, state_c) = tf.keras.layers.LSTM(vectors_size,
 			return_state=True)(encoder_embedding)
 	encoder_states = [state_h, state_c]
 
 	decoder_inputs = tf.keras.layers.Input(shape=(None, ))
-	decoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, 300,
+	decoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, vectors_size,
 			mask_zero=False, weights=[embedding_matrix], trainable=False, input_length=maxlen_answers)(decoder_inputs)
 	if use_batch_normalisation:
 		decoder_embedding = tf.keras.layers.BatchNormalization()(decoder_embedding)
 	if use_spatial_dropout:
 		decoder_embedding = tf.keras.layers.SpatialDropout1D(0.2)(decoder_embedding)
 	if use_reccurent_dropout:
-		decoder_lstm = tf.keras.layers.LSTM(300, return_state=True,
+		decoder_lstm = tf.keras.layers.LSTM(vectors_size, return_state=True,
 									return_sequences=True, recurrent_dropout=0.2)
 	else:
-		decoder_lstm = tf.keras.layers.LSTM(300, return_state=True,
+		decoder_lstm = tf.keras.layers.LSTM(vectors_size, return_state=True,
 											return_sequences=True)
 	(decoder_outputs, _, _) = decoder_lstm(decoder_embedding,
 			initial_state=encoder_states)
@@ -235,8 +236,8 @@ def train(use_spatial_dropout, use_reccurent_dropout, use_batch_normalisation):
 def make_inference_models(encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs):
 	encoder_model = tf.keras.models.Model(encoder_inputs,
 			encoder_states)
-	decoder_state_input_h = tf.keras.layers.Input(shape=(300, ))
-	decoder_state_input_c = tf.keras.layers.Input(shape=(300, ))
+	decoder_state_input_h = tf.keras.layers.Input(shape=(vectors_size, ))
+	decoder_state_input_c = tf.keras.layers.Input(shape=(vectors_size, ))
 	decoder_states_inputs = [decoder_state_input_h,
 							 decoder_state_input_c]
 	(decoder_outputs, state_h, state_c) = decoder_lstm(decoder_embedding,
@@ -327,12 +328,15 @@ argslist.add_argument('--useReccurentDropout', metavar='[True/False]', type=bool
         help='Specify whether to use a recurrent dropout in the LSTM', default=False, required=False)
 argslist.add_argument('--useBatchNormalisation', metavar='[True/False]', type=bool,
         help='Specify whether to use batch normalisation', default=False, required=False)
+argslist.add_argument('--vectorSize', metavar='path', type=int,
+        help='Specify the size of the word vectors', default=100, required=False)
 args = argslist.parse_args()
 
 # Launch everything
 
 maxlen_questions = 22
 maxlen_answers = 74
+vectors_size = args.vectorSize
 
 if len(args.loadModel) > 0:
 	print("Seq2Seq: Loading model from " + args.loadModel + "...")
