@@ -352,7 +352,7 @@ argslist.add_argument('--useReccurentDropout', metavar='[True/False]', type=bool
         help='Specify whether to use a recurrent dropout in the LSTM', default=False, required=False)
 argslist.add_argument('--useBatchNormalisation', metavar='[True/False]', type=bool,
         help='Specify whether to use batch normalisation', default=True, required=False)
-argslist.add_argument('--vectorSize', metavar='path', type=int,
+argslist.add_argument('--vectorSize', metavar='size', type=int,
         help='Specify the size of the word vectors', default=100, required=False)
 args = argslist.parse_args()
 
