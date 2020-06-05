@@ -230,7 +230,7 @@ def create_model(encoder_input_data, decoder_input_data, decoder_output_data, us
 	output = decoder_dense(decoder_outputs)
 
 	model = tf.keras.models.Model([encoder_inputs, decoder_inputs], output)
-	model.compile(optimizer=tf.keras.optimizers.Nadam(),
+	model.compile(optimizer=tf.keras.optimizers.Adam(),
 				  loss='sparse_categorical_crossentropy')
 	model.summary()
 	return model, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs
@@ -240,7 +240,7 @@ def train(use_spatial_dropout, use_reccurent_dropout, use_batch_normalisation):
 	encoder_input_data, decoder_input_data, decoder_output_data = create_input_output()
 	model, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs = create_model(encoder_input_data, decoder_input_data, decoder_output_data, use_spatial_dropout, use_reccurent_dropout, use_batch_normalisation)
 	model.fit([encoder_input_data, decoder_input_data],
-			  decoder_output_data, batch_size=32, epochs=200)
+			  decoder_output_data, batch_size=512, epochs=500)
 	return encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs
 
 # Defining inference models
