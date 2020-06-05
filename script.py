@@ -190,7 +190,7 @@ def create_input_output():
 def create_model(encoder_input_data, decoder_input_data, decoder_output_data, use_spatial_dropout=False, use_reccurent_dropout=False, use_batch_normalisation=False):
 	encoder_inputs = tf.keras.layers.Input(shape=(None, ))
 	encoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, vectors_size,
-			mask_zero=False, weights=[embedding_matrix], trainable=False, input_length=maxlen_questions)(encoder_inputs)
+			weights=[embedding_matrix], trainable=False)(encoder_inputs)
 	if use_batch_normalisation:
 		encoder_embedding = tf.keras.layers.BatchNormalization()(encoder_embedding)
 	if use_spatial_dropout:
@@ -201,7 +201,7 @@ def create_model(encoder_input_data, decoder_input_data, decoder_output_data, us
 
 	decoder_inputs = tf.keras.layers.Input(shape=(None, ))
 	decoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, vectors_size,
-			mask_zero=False, weights=[embedding_matrix], trainable=False, input_length=maxlen_answers)(decoder_inputs)
+			weights=[embedding_matrix], trainable=False)(decoder_inputs)
 	if use_batch_normalisation:
 		decoder_embedding = tf.keras.layers.BatchNormalization()(decoder_embedding)
 	if use_spatial_dropout:
