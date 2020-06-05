@@ -54,6 +54,17 @@ def use_custom_data(path):
 	for i in range(len(non_tonkenized_answers)):
 		answers.append('<start> ' + non_tonkenized_answers[i] + ' <end>')
 
+	# Force length
+	length_limit = 25
+	new_questions = []
+	new_answers = []
+	for i in range(len(questions)):
+		if not((len(questions[i].split()) > length_limit) or (len(answers[i].split()) > length_limit+2)):
+			new_questions.append(questions[i])
+			new_answers.append(answers[i])
+	questions = new_questions
+	answers = new_answers
+
 # Preprocess the data
 def preprocess_data():
 	global questions
