@@ -13,6 +13,7 @@ from gensim.models import Word2Vec
 import re
 from gensim.models import KeyedVectors
 import argparse
+from gensim.models import FastText
 
 # Global variables
 
@@ -130,9 +131,12 @@ def clean_everything():
 	questions = [clean_text(s) for s in questions]
 	answers = [clean_text(s) for s in answers]
 
-def load_word2vec(model_path):
+def load_word2vec(model_path, useFastText):
 	global model_w2v
-	model_w2v = KeyedVectors.load_word2vec_format(model_path, binary=False)
+	if useFastText:
+		model_w2v = FastText.load(model_path)
+	else:
+		model_w2v = KeyedVectors.load_word2vec_format(model_path, binary=False)
 
 def fit_tokenizer():
 	global tokenizer
@@ -145,7 +149,7 @@ def fit_tokenizer():
 def get_known_words():
 	known_words = []
 	for word in tokenizer.word_index:
-		if word in model_w2v.vocab:
+		if word in model_w2v:
 			known_words.append(word)
 	return known_words + ["<unk>"]
 
@@ -337,6 +341,8 @@ argslist = argparse.ArgumentParser(description="Seq2Seq Neural Network")
 
 argslist.add_argument('word2vec_model', metavar='word2vec_model', type=str,
 		help='Path to the word2vec model')
+argslist.add_argument('--useFastText', metavar='[True/False]', type=bool,
+        help='Specify whether to use Facebook FastText model', default=False, required=True)
 argslist.add_argument('--downloadData', metavar='[True/False]', type=bool,
         help='Specify whether the dataset should be downloaded', default=False, required=False)
 argslist.add_argument('--customData', metavar='path', type=str,
@@ -381,7 +387,7 @@ else:
 		print("Seq2Seq: Cleaning the data...")
 		clean_everything()
 	print("Seq2Seq: Loading word2vec model...")
-	load_word2vec(args.word2vec_model)
+	load_word2vec(args.word2vec_model, args.useFastText)
 	print("Seq2Seq: Training the tokenizer")
 	fit_new_tokenizer()
 	print("Seq2Seq: Creating the embedding matrix...")
