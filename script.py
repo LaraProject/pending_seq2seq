@@ -35,12 +35,13 @@ def import_data():
 	z.extractall()
 
 # Import custom data
-def use_custom_data(path):
+def use_custom_data(path, size):
 	global questions
 	global answers
 	# Open file
 	f = open(path)
-	lines = f.readlines()
+	lines = (f.readlines())
+	lines = lines[:int(len(lines) * (size/100.))]
 	f.close()
 	non_tonkenized_answers = []
 	for i in range(len(lines)):
@@ -354,6 +355,8 @@ argslist.add_argument('--useBatchNormalisation', metavar='[True/False]', type=bo
         help='Specify whether to use batch normalisation', default=True, required=False)
 argslist.add_argument('--vectorSize', metavar='size', type=int,
         help='Specify the size of the word vectors', default=100, required=False)
+argslist.add_argument('--dataSize', metavar='size', type=int,
+        help='Specify the percentage of data to use', default=100, required=False)
 args = argslist.parse_args()
 
 # Launch everything
@@ -368,7 +371,7 @@ if len(args.loadModel) > 0:
 else:
 	if len(args.customData) > 0:
 		print("Seq2Seq: Using custom dataset from " + args.customData)
-		use_custom_data(args.customData)
+		use_custom_data(args.customData, args.dataSize)
 	else:
 		if args.downloadData:
 			print("Seq2Seq: Downloading data")
