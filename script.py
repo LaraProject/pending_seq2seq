@@ -60,7 +60,7 @@ def use_custom_data(path, size):
 	length_limit = 25
 	new_questions = []
 	new_answers = []
-	for i in range(len(questions)):
+	for i in range(min(len(questions), len(answers))):
 		if not((len(questions[i].split()) > length_limit) or (len(answers[i].split()) > length_limit+2)):
 			new_questions.append(questions[i])
 			new_answers.append(answers[i])
