@@ -1,0 +1,5 @@
+numpy
+tensorflow
+pyyaml
+gensim
+argparse
