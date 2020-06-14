@@ -25,7 +25,7 @@ argslist.add_argument('--useFastText', metavar='[True/False]', type=bool,
 argslist.add_argument('--downloadData', metavar='[True/False]', type=bool,
         help='Specify whether the dataset should be downloaded', default=False, required=False)
 argslist.add_argument('--customData', metavar='path', type=str,
-        help='Specify the path to the custom dataset', default='', required=False)
+        help='Specify the path to the custom dataset', default='', required=True)
 argslist.add_argument('--speak', metavar='[True/False]', type=bool,
         help='Specify whether to speak with the Network', default=False, required=False)
 argslist.add_argument('--saveModel', metavar='path', type=str,
@@ -54,17 +54,8 @@ if len(args.loadModel) > 0:
 	tokenizer = load_tokenizer(args.loadModel + "/tokenizer.pickle")
 	maxlen_questions, maxlen_answers = load_tokenizer(args.loadModel + "/length.txt")
 else:
-	if len(args.customData) > 0:
-		print("Seq2Seq: Using custom dataset from " + args.customData)
-		use_custom_data(args.customData, args.dataSize)
-	else:
-		if args.downloadData:
-			print("Seq2Seq: Downloading data")
-			import_data()
-		print("Seq2Seq: Preprocessing the data...")
-		preprocess_data()
-		print("Seq2Seq: Cleaning the data...")
-		clean_everything()
+	print("Seq2Seq: Using custom dataset from " + args.customData)
+	use_custom_data(args.customData, args.dataSize)
 	print("Seq2Seq: Loading word2vec model...")
 	load_word2vec(args.word2vec_model, args.useFastText)
 	print("Seq2Seq: Training the tokenizer")
