@@ -1,9 +1,10 @@
 import argparse
 import seq2seq.dataset
 import seq2seq.model
-import seq2seq.save
+#import seq2seq.save
 from tensorflow.keras import preprocessing
 
+'''
 # Make a TensorFlow Tokenizer
 tokenizer = preprocessing.text.Tokenizer(filters='')
 questions = []
@@ -75,3 +76,4 @@ else:
 if args.speak:
 	print("Seq2Seq: Ready for questions")
 	ask_questions(encoder_model, decoder_model)
+'''

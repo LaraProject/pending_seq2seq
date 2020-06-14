@@ -1,93 +1,237 @@
-import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers, activations, models, preprocessing
-from tensorflow.keras import preprocessing, utils
+import os
+import time
 
-# Defining the Encoder-Decoder model
-def create_model(encoder_input_data, decoder_input_data, decoder_output_data, use_spatial_dropout=False, use_reccurent_dropout=False, use_batch_normalisation=False):
-	encoder_inputs = tf.keras.layers.Input(shape=(None, ))
-	encoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, vectors_size,
-			weights=[embedding_matrix], trainable=False)(encoder_inputs)
-	if use_batch_normalisation:
-		encoder_embedding = tf.keras.layers.BatchNormalization()(encoder_embedding)
-	if use_spatial_dropout:
-		encoder_embedding = tf.keras.layers.SpatialDropout1D(0.2)(encoder_embedding)
-	(encoder_outputs, state_h, state_c) = tf.keras.layers.LSTM(vectors_size,
-			return_state=True)(encoder_embedding)
-	encoder_states = [state_h, state_c]
+# Encoder layer
+class Encoder(tf.keras.Model):
+	def __init__(self, embedding_matrix, enc_units, batch_sz,use_batch_normalisation, use_spatial_dropout):
+		super(Encoder, self).__init__()
+		self.batch_sz = batch_sz
+		self.enc_units = enc_units
+		self.embedding = tf.keras.layers.Embedding(embedding_matrix.shape[0], embedding_matrix.shape[1],
+										weights=[embedding_matrix],
+										trainable=False)
+		self.gru = tf.keras.layers.GRU(self.enc_units,
+										return_sequences=True,
+										return_state=True,
+										recurrent_initializer='glorot_uniform')
+		self.use_batch_normalisation = use_batch_normalisation
+		self.use_spatial_dropout = use_spatial_dropout
 
-	decoder_inputs = tf.keras.layers.Input(shape=(None, ))
-	decoder_embedding = tf.keras.layers.Embedding(VOCAB_SIZE, vectors_size,
-			weights=[embedding_matrix], trainable=False)(decoder_inputs)
-	if use_batch_normalisation:
-		decoder_embedding = tf.keras.layers.BatchNormalization()(decoder_embedding)
-	if use_spatial_dropout:
-		decoder_embedding = tf.keras.layers.SpatialDropout1D(0.2)(decoder_embedding)
-	if use_reccurent_dropout:
-		decoder_lstm = tf.keras.layers.LSTM(vectors_size, return_state=True,
-									return_sequences=True, recurrent_dropout=0.2)
-	else:
-		decoder_lstm = tf.keras.layers.LSTM(vectors_size, return_state=True,
-											return_sequences=True)
-	(decoder_outputs, _, _) = decoder_lstm(decoder_embedding,
-			initial_state=encoder_states)
-	decoder_dense = tf.keras.layers.Dense(VOCAB_SIZE,
-			activation=tf.keras.activations.softmax)
-	output = decoder_dense(decoder_outputs)
+	def call(self, x, hidden):
+		x = self.embedding(x)
+		# Use BatchNormalisation
+		if self.use_batch_normalisation:
+			x = tf.keras.layers.BatchNormalization()(x)
+		# Use spatial dropout
+		if self.use_spatial_dropout:
+			x = tf.keras.layers.SpatialDropout1D(0.2)(x)
+		output, state = self.gru(x, initial_state = hidden)
+		return output, state
 
-	model = tf.keras.models.Model([encoder_inputs, decoder_inputs], output)
-	model.compile(optimizer=tf.keras.optimizers.Nadam(),
-				  loss='sparse_categorical_crossentropy')
-	model.summary()
-	return model, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs
+	def initialize_hidden_state(self):
+		return tf.zeros((self.batch_sz, self.enc_units))
 
-# Training the model
-def train(use_spatial_dropout, use_reccurent_dropout, use_batch_normalisation):
-	encoder_input_data, decoder_input_data, decoder_output_data = create_input_output()
-	model, encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs = create_model(encoder_input_data, decoder_input_data, decoder_output_data, use_spatial_dropout, use_reccurent_dropout, use_batch_normalisation)
-	model.fit([encoder_input_data, decoder_input_data],
-			  decoder_output_data, batch_size=512, epochs=500)
-	return encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs
+# Attention Seq2Seq lay
+class BahdanauAttention(tf.keras.layers.Layer):
+	def __init__(self, units):
+		super(BahdanauAttention, self).__init__()
+		self.W1 = tf.keras.layers.Dense(units)
+		self.W2 = tf.keras.layers.Dense(units)
+		self.V = tf.keras.layers.Dense(1)
 
-# Defining inference models
-def make_inference_models(encoder_inputs, encoder_states, decoder_embedding, decoder_lstm, decoder_dense, decoder_inputs):
-	encoder_model = tf.keras.models.Model(encoder_inputs,
-			encoder_states)
-	decoder_state_input_h = tf.keras.layers.Input(shape=(vectors_size, ))
-	decoder_state_input_c = tf.keras.layers.Input(shape=(vectors_size, ))
-	decoder_states_inputs = [decoder_state_input_h,
-							 decoder_state_input_c]
-	(decoder_outputs, state_h, state_c) = decoder_lstm(decoder_embedding,
-					 initial_state=decoder_states_inputs)
-	decoder_states = [state_h, state_c]
-	decoder_outputs = decoder_dense(decoder_outputs)
-	decoder_model = tf.keras.models.Model([decoder_inputs]
-			+ decoder_states_inputs, [decoder_outputs] + decoder_states)
-	return (encoder_model, decoder_model)
+	def call(self, query, values):
+		# query hidden state shape == (batch_size, hidden size)
+		# query_with_time_axis shape == (batch_size, 1, hidden size)
+		# values shape == (batch_size, max_len, hidden size)
+		# we are doing this to broadcast addition along the time axis to calculate the score
+		query_with_time_axis = tf.expand_dims(query, 1)
 
-# Ask multiple questions
-def ask_questions(enc_model, dec_model):
-	for _ in range(10):
-		states_values = enc_model.predict(str_to_tokens(input('Enter question : ')))
-		empty_target_seq = np.zeros((1, 1))
-		empty_target_seq[0, 0] = tokenizer.word_index['<start>']
-		stop_condition = False
-		decoded_translation = ''
-		while not stop_condition:
-			(dec_outputs, h, c) = dec_model.predict([empty_target_seq]
-					+ states_values)
-			sampled_word_index = np.argmax(dec_outputs[0, -1, :])
-			sampled_word = None
-			for (word, index) in tokenizer.word_index.items():
-				if sampled_word_index == index:
-					decoded_translation += ' {}'.format(word)
-					sampled_word = word
+		# score shape == (batch_size, max_length, 1)
+		# we get 1 at the last axis because we are applying score to self.V
+		# the shape of the tensor before applying self.V is (batch_size, max_length, units)
+		score = self.V(tf.nn.tanh(
+				self.W1(query_with_time_axis) + self.W2(values)))
 
-			if sampled_word == '<end>' or len(decoded_translation.split()) > maxlen_answers:
-				stop_condition = True
+		# attention_weights shape == (batch_size, max_length, 1)
+		attention_weights = tf.nn.softmax(score, axis=1)
 
-			empty_target_seq = np.zeros((1, 1))
-			empty_target_seq[0, 0] = sampled_word_index
-			states_values = [h, c]
+		# context_vector shape after sum == (batch_size, hidden_size)
+		context_vector = attention_weights * values
+		context_vector = tf.reduce_sum(context_vector, axis=1)
 
-		print(decoded_translation[:-5])  # remove end w
+		return context_vector, attention_weights
+
+# Decoder layer
+class Decoder(tf.keras.Model):
+	def __init__(self, embedding_matrix, dec_units, batch_sz, use_batch_normalisation, use_spatial_dropout):
+		super(Decoder, self).__init__()
+		self.batch_sz = batch_sz
+		self.dec_units = dec_units
+		self.embedding = tf.keras.layers.Embedding(embedding_matrix.shape[0], embedding_matrix.shape[1],
+										weights=[embedding_matrix],
+										trainable=False)
+		self.gru = tf.keras.layers.GRU(self.dec_units,
+										return_sequences=True,
+										return_state=True,
+										recurrent_initializer='glorot_uniform')
+		self.fc = tf.keras.layers.Dense(embedding_matrix.shape[0])
+		self.use_batch_normalisation = use_batch_normalisation
+		self.use_spatial_dropout = use_spatial_dropout
+
+		# used for attention
+		self.attention = BahdanauAttention(self.dec_units)
+
+	def call(self, x, hidden, enc_output):
+		# enc_output shape == (batch_size, max_length, hidden_size)
+		context_vector, attention_weights = self.attention(hidden, enc_output)
+
+		# x shape after passing through embedding == (batch_size, 1, embedding_dim)
+		x = self.embedding(x)
+
+		# Use BatchNormalisation
+		if self.use_batch_normalisation:
+			x = tf.keras.layers.BatchNormalization()(x)
+		if self.use_spatial_dropout:
+			x = tf.keras.layers.SpatialDropout1D(0.2)(x)
+
+		# x shape after concatenation == (batch_size, 1, embedding_dim + hidden_size)
+		x = tf.concat([tf.expand_dims(context_vector, 1), x], axis=-1)
+
+		# passing the concatenated vector to the GRU
+		output, state = self.gru(x)
+
+		# output shape == (batch_size * 1, hidden_size)
+		output = tf.reshape(output, (-1, output.shape[2]))
+
+		# output shape == (batch_size, vocab)
+		x = self.fc(output)
+
+		return x, state, attention_weights
+
+# Create model
+def create_model(embedding_matrix_input, embedding_matrix_output, units, batch_size, use_batch_normalisation, use_spatial_dropout):
+	# Encoder
+	encoder = Encoder(embedding_matrix_input, units, batch_size, use_batch_normalisation, use_spatial_dropout)
+	# Decoder
+	decoder = Decoder(embedding_matrix_output, units, batch_size, use_batch_normalisation, use_spatial_dropout)
+
+	return encoder, decoder
+
+# Custom loss function
+def loss_function(real, pred, loss_object):
+	mask = tf.math.logical_not(tf.math.equal(real, 0))
+	loss_ = loss_object(real, pred)
+	mask = tf.cast(mask, dtype=loss_.dtype)
+	loss_ *= mask
+	return tf.reduce_mean(loss_)
+
+# Checkpoint
+checkpoint_dir = './training_checkpoints'
+checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+def get_checkpoint(encoder, decoder, optimizer):
+	checkpoint = tf.train.Checkpoint(optimizer=optimizer,
+									encoder=encoder,
+									decoder=decoder)
+	return checkpoint
+
+# Training step
+@tf.function
+def train_step(encoder, decoder, inp, targ, targ_tokenizer, enc_hidden, batch_size, loss_object, optimizer):
+	loss = 0
+
+	with tf.GradientTape() as tape:
+		enc_output, enc_hidden = encoder(inp, enc_hidden)
+		dec_hidden = enc_hidden
+		dec_input = tf.expand_dims([targ_tokenizer.word_index['<start>']] * batch_size, 1)
+
+		# Teacher forcing - feeding the target as the next input
+		for t in range(1, targ.shape[1]):
+			# passing enc_output to the decoder
+			predictions, dec_hidden, _ = decoder(dec_input, dec_hidden, enc_output)
+			loss += loss_function(targ[:, t], predictions, loss_object)
+
+			# using teacher forcing
+			dec_input = tf.expand_dims(targ[:, t], 1)
+
+	batch_loss = (loss / int(targ.shape[1]))
+	variables = encoder.trainable_variables + decoder.trainable_variables
+	gradients = tape.gradient(loss, variables)
+	optimizer.apply_gradients(zip(gradients, variables))
+
+	return batch_loss
+
+# Main training fonction
+@tf.function
+def train(embedding_matrix_input, embedding_matrix_output, targ_tokenizer, epochs, units, batch_size, dataset, checkpoint, use_batch_normalisation, use_spatial_dropout):
+	# Optimizer
+	optimizer = tf.keras.optimizers.Adam()
+	# Loss object
+	loss_object = tf.keras.losses.SparseCategoricalCrossentropy(
+		from_logits=True, reduction='none')
+	# Encoder/Decoder
+	encoder, decoder = create_model(embedding_matrix_input, embedding_matrix_output, units, batch_size, use_batch_normalisation, use_spatial_dropout)
+
+	for epoch in range(epochs):
+		start = time.time()
+
+		enc_hidden = encoder.initialize_hidden_state()
+		total_loss = 0
+
+		for (batch, (inp, targ)) in enumerate(dataset.take(steps_per_epoch)):
+			batch_loss = train_step(inp, targ, targ_tokenizer, enc_hidden, batch_size, loss_object, optimizer)
+			total_loss += batch_loss
+
+			if batch % 100 == 0:
+				print('Epoch {} Batch {} Loss {:.4f}'.format(epoch + 1,
+															batch,
+															batch_loss.numpy()))
+		# saving (checkpoint) the model every 2 epochs
+		if (epoch + 1) % 2 == 0:
+			checkpoint.save(file_prefix = checkpoint_prefix)
+
+		print('Epoch {} Loss {:.4f}'.format(epoch + 1,
+											total_loss / steps_per_epoch))
+		print('Time taken for 1 epoch {} sec\n'.format(time.time() - start))
+
+# Get the output of the neural network
+@tf.function
+def evaluate(sentence, encoder, decoder, units, max_length_inp, targ_tokenizer):
+	sentence = "<start>" + sentence + "<end>"
+
+	inputs = [inp_lang.word_index[i] for i in sentence.split(' ')]
+	inputs = tf.keras.preprocessing.sequence.pad_sequences([inputs],
+															maxlen=max_length_inp,
+															padding='post')
+	inputs = tf.convert_to_tensor(inputs)
+
+	result = ''
+
+	hidden = [tf.zeros((1, units))]
+	enc_out, enc_hidden = encoder(inputs, hidden)
+
+	dec_hidden = enc_hidden
+	dec_input = tf.expand_dims([targ_tokenizer.word_index['<start>']], 0)
+
+	for t in range(max_length_targ):
+		# Training step
+		predictions, dec_hidden, attention_weights = decoder(dec_input,
+															dec_hidden,
+															enc_out)
+		predicted_id = tf.argmax(predictions[0]).numpy()
+
+		result += targ_tokenizer.index_word[predicted_id] + ' '
+
+		if targ_tokenizer.index_word[predicted_id] == '<end>':
+			return result
+
+		# the predicted ID is fed back into the model
+		dec_input = tf.expand_dims([predicted_id], 0)
+
+	return result
+
+# Get an answer from a question
+def getAnswer(question, encoder, decoder, units, max_length_inp, targ_tokenizer):
+  result = evaluate(question, encoder, decoder, units, max_length_inp, targ_tokenizer)
+  print('Input: %s' % (sentence))
+  print('Predicted translation: {}'.format(result))

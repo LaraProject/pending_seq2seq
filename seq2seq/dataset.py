@@ -1,18 +1,18 @@
-import numpy as np
-from tensorflow.keras import preprocessing, utils
+import tensorflow as tf
 from gensim.models import Word2Vec
 from gensim.models import KeyedVectors
 from gensim.models import FastText
 
 # Import custom data
 def use_custom_data(path, size):
-	global questions
-	global answers
 	# Open file
 	f = open(path)
 	lines = (f.readlines())
 	lines = lines[:int(len(lines) * (size/100.))]
 	f.close()
+
+	# Get questions and answers
+	questions = []
 	non_tonkenized_answers = []
 	for i in range(len(lines)):
 		if i % 2 == 0:
@@ -33,78 +33,62 @@ def use_custom_data(path, size):
 		if not((len(questions[i].split()) > length_limit) or (len(answers[i].split()) > length_limit+2)):
 			new_questions.append(questions[i])
 			new_answers.append(answers[i])
-	questions = new_questions
-	answers = new_answers
 
+	return new_questions, new_answers
+
+# Load the Word2Vec model
 def load_word2vec(model_path, useFastText):
-	global model_w2v
 	if useFastText:
-		model_w2v = FastText.load(model_path)
+		return FastText.load(model_path)
 	else:
-		model_w2v = KeyedVectors.load_word2vec_format(model_path, binary=False)
-
-def fit_tokenizer():
-	global tokenizer
-	global VOCAB_SIZE
-	tokenizer.fit_on_texts(questions + answers)
-	VOCAB_SIZE = len(tokenizer.word_index) + 1
-	#print('VOCAB SIZE : {}'.format(VOCAB_SIZE))
+		return KeyedVectors.load_word2vec_format(model_path, binary=False)
 
 # Get all words which are in both the model and the dataset
-def get_known_words():
+def get_known_words(tokenizer, model_w2v):
 	known_words = []
 	for word in tokenizer.word_index:
 		if word in model_w2v:
 			known_words.append(word)
 	return known_words + ["<unk>"]
 
-# Make a new tokenizer
-def fit_new_tokenizer():
-	global tokenizer
-	global VOCAB_SIZE
-	fit_tokenizer()
-	known_words = get_known_words()
-	tokenizer_new = preprocessing.text.Tokenizer(oov_token='<unk>', filters='')
-	tokenizer_new.fit_on_texts([known_words])
-	tokenizer = tokenizer_new
-	VOCAB_SIZE = len(tokenizer.word_index) + 1 + 1
-	#print('VOCAB SIZE : {}'.format(VOCAB_SIZE))
-
+def fit_tokenizer(data, model_w2v):
+	# Fit first tokenizer
+	tokenizer = preprocessing.text.Tokenizer(oov_token='<unk>', filters='')
+	tokenizer.fit_on_texts(data)
+	# Get the known words
+	known_words = get_known_words(tokenizer, model_w2v)
+	# Fit a new tokenizer
+	tokenizer = preprocessing.text.Tokenizer(oov_token='<unk>', filters='')
+	tokenizer.fit_on_texts([known_words])
+	vocab_size = len(tokenizer.word_index) + 1 + 1
+	return tokenizer, vocab_size
 
 # Create the embedding matrix
-def create_embedding_matrix():
-	global embedding_matrix
-	embedding_matrix = np.zeros((VOCAB_SIZE, vectors_size))
+def create_embedding_matrix(tokenizer, model_w2v, vocab_size, vectors_size):
+	embedding_matrix = tf.zeros((vocab_size, vectors_size))
 	for word, i in tokenizer.word_index.items():
 		embedding_matrix[i] = model_w2v[word]
+	return embedding_matrix
 
-# Create input and output datasets
-# encoder_input_data
-def create_input_output():
-	global maxlen_answers
-	global maxlen_questions
-	tokenized_questions = tokenizer.texts_to_sequences(questions)
-	maxlen_questions = max([len(x) for x in tokenized_questions])
-	padded_questions = preprocessing.sequence.pad_sequences(tokenized_questions,
-			maxlen=maxlen_questions, padding='post')
-	encoder_input_data = np.array(padded_questions)
-	#print((encoder_input_data.shape, maxlen_questions))
+# Create tokenized data
+def tokenize(data, model_w2v):
+	tokenizer, vocab_size = fit_tokenizer(data, model_w2v)
+	tensor = lang_tokenizer.texts_to_sequences(data)
+	tensor = tf.keras.preprocessing.sequence.pad_sequences(tensor, padding='post')
+	return tensor, tokenizer, vocab_size
 
-	# decoder_input_data
-	tokenized_answers = tokenizer.texts_to_sequences(answers)
-	maxlen_answers = max([len(x) for x in tokenized_answers])
-	padded_answers = preprocessing.sequence.pad_sequences(tokenized_answers,
-			maxlen=maxlen_answers, padding='post')
-	decoder_input_data = np.array(padded_answers)
-	#print((decoder_input_data.shape, maxlen_answers))
+# Load the dataset
+def load_dataset(path, model_w2v, vectors_size, size=100):
+	input_data, target_data = use_custom_data(path, size)
+	input_tensor, input_tokenizer, input_vocab_size = tokenize(input_data)
+	target_tensor, target_tokenizer, target_vocab_size = tokenize(target_data)
+	input_embedding_matrix = create_embedding_matrix(input_tokenizer, model_w2v, input_vocab_size, vectors_size)
+	output_embedding_matrix = create_embedding_matrix(output_tokenizer, model_w2v, output_vocab_size, vectors_size)
+	return input_tensor, target_tensor, input_tokenizer, target_tokenizer, input_embedding_matrix, output_embedding_matrix
 
-	# decoder_output_data
-	tokenized_answers = tokenizer.texts_to_sequences(answers)
-	for i in range(len(tokenized_answers)):
-		tokenized_answers[i] = (tokenized_answers[i])[1:]
-	padded_answers = preprocessing.sequence.pad_sequences(tokenized_answers,
-			maxlen=maxlen_answers, padding='post')
-	decoder_output_data = np.array(padded_answers)
-	#print(decoder_output_data.shape)
-
-	return encoder_input_data, decoder_input_data, decoder_output_data
+# Create a TF Dataset
+def create_tf_dataset(input_tensor_train, target_tensor_train, batch_size):
+	buffer_size = len(input_tensor_train)
+	dataset = tf.data.Dataset.from_tensor_slices((input_tensor_train, target_tensor_train)).shuffle(buffer_size)
+	dataset = dataset.batch(batch_size, drop_remainder=True)
+	return dataset
